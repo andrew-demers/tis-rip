@@ -1,64 +1,71 @@
 # TIS Document Ripper
 
-This script allows you to rip electrical wiring diagrams, collision/body repair manuals, and repair manuals from
-Toyota's TIS.
-
-### CZ notes: June 2022
-
-Install dependencies (bs4, selenium) in conda environment. Activate (e.g., `conda activate scrape`)
-
-1\. Check Google Chrome for version, then given version download matching ChromeDriver from http://chromedriver.chromium.org/downloads (e.g., chromedriver_mac64.zip) and unzip the binary into this directory.
-
-2\. Generate user profile in this directory on MacOS by running:
-
-```
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --user-data-dir=./user-data
-```
-
-Verify that you now have a folder `./user-data`
-
-3\. Do initial "rip." `./rip.py RM30B0U` --> this will open TIS in Chrome and prompt a login. After this, return to Terminal and press enter.
-
-4\. The initial rip creates and HTML ToC. After the initial rip is completed, run the code again `./rip.py RM30B0U` and it will find the HTML files and instead generate PDFs for all files and add to the ToC as well.
-
-NOTE: Some older vehicles (e.g., 2008 Corolla) have body repair manuals that start with BRM and do not use the same document ID as the RM or EM.
+Downloads electrical wiring diagrams, collision/body repair manuals, and repair manuals from Toyota's TIS using a Selenium-controlled Chrome browser.
 
 ## Setup
 
-This script requires that you download ChromeDriver from http://chromedriver.chromium.org/downloads and place the
-executable in this directory. You will also need to initialize a new Chrome user profile at ./user-data and configure
-some settings manually:
-
-```
-chrome --user-data-dir=./user-data
-```
-
-You should set the Download directory to ./download, and disable the built-in PDF viewer.
-
-You will also need to install the pip dependencies:
+**1. Install dependencies:**
 
 ```
 pip install -r requirements.txt
 ```
 
-## Usage
+**2. Initialize a Chrome profile** (run once, then close the window that opens):
 
 ```
-./rip.py EM12345 RM12345 BM12345 BM98765 RM01935 EM37590
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --user-data-dir=./user-data
 ```
 
-All manuals will be downloaded to their own directories.
+No ChromeDriver download needed — Selenium 4 manages it automatically.
 
-## Finding document IDs
+## Downloading manuals (rip.py)
 
-The easiest way to find the document IDs is to search for your vehicle in TIS and look at the URLs for the documents.
-EWDs start with "EM", body repair manuals start with "BM", and repair manuals start with "RM".
+```
+./rip.py EM12345 RM12345 BM12345
+```
 
-## Output
+- `EM` — Electrical Wiring Diagrams
+- `RM` — Repair Manuals
+- `BM` — Collision/Body Repair Manuals
 
-RM and BM will both have indexes generated for them, and PDFs will be generated for HTML pages. All images are embedded
-in the pages so there are no external dependencies for a single page. All inter-page links are corrected so that they
-continue to work in the HTML versions of the pages, but be aware that links in PDFs can behave inconsistently at times.
+The script opens Chrome, navigates to Toyota TIS, and prompts you to log in before continuing. Each manual downloads into its own directory named after the document ID.
 
-Electrical diagrams are downloaded for the `system`, `overall`, and `routing` categories, as they are the most useful
-(and they come in convenient PDF form).
+**Two-pass workflow:** Run the script twice on the same arguments.
+
+- First run downloads all HTML pages
+- Second run generates PDFs from those HTML pages
+
+### Finding document IDs
+
+Search for your vehicle on TIS and look at the document URLs. The ID is the alphanumeric code in the URL (e.g. `RM41R0U`).
+
+NOTE: Some older vehicles (e.g., 2008 Corolla) have body repair manuals starting with `BRM` that do not share the same document ID as the `RM` or `EM`.
+
+### Output structure
+
+```
+RM41R0U/
+  toc.xml         — table of contents from TIS
+  index.html      — browsable HTML index
+  html/           — individual HTML pages
+  pdf/            — PDFs generated from HTML pages
+```
+
+Electrical diagrams are downloaded as PDFs directly for the `system`, `overall`, and `routing` categories.
+
+## Combining into a single PDF (combine.py)
+
+After downloading, combine all PDFs into one file with a linked table of contents:
+
+```
+./combine.py RM41R0U
+```
+
+Output: `RM41R0U_combined.pdf`
+
+The combined PDF includes:
+- A table of contents at the front with dot leaders and page numbers
+- Clickable links on every TOC entry that jump to the correct page
+- A PDF outline (navigation panel in Preview, Acrobat, etc.)
+
+Pages not yet downloaded are skipped gracefully. Run `rip.py` again to fill in any gaps, then re-run `combine.py`.
