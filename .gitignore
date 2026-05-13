@@ -2,3 +2,7 @@ download
 user-data
 chromedriver
 chromedriver.exe
+EM*/
+RM*/
+BM*/
+.DS_Store

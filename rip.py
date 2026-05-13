@@ -8,6 +8,8 @@ import subprocess
 from bs4 import BeautifulSoup
 import os
 import sys
+import re
+import requests
 
 # The chrome application path is pretty platform/install specific..
 CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -191,62 +193,46 @@ def download_manual(driver, t, id):
         if os.path.exists(f_p) or os.path.exists(pdf_p):
             continue
         driver.get(url)
+        page_source = driver.page_source
 
-        if "location='/t3Portal" in driver.page_source:
+        if "location='/t3Portal" in page_source:
             print("\tPDF redirect found!")
-            
-            while True:
-                time.sleep(5.0)
-                incomplete = False
-                for f in os.listdir("download"):
-                    if f.endswith(".crdownload"):
-                        incomplete = True
-                        break
-                if not incomplete:
-                    break
-                else:
-                    print("Waiting for incomplete download!")
-                    time.sleep(5.0)
-
-            # list out all downloads in folder and try to match them!
-            dest_file = None
-            while len(os.listdir("download")) < 1:
-                time.sleep(5.0)
-
-            for f in os.listdir("download"):
-                print(f)
-                if f in driver.page_source:
-                    dest_file = f
-                    break
-            
-            if dest_file is None:
-                print("\tCould not find matching download!")
-                input("wait")
+            match = re.search(r"location\s*=\s*['\"]?(/t3Portal[^'\">\s]+)", page_source)
+            if not match:
+                print("\tCould not parse redirect URL, skipping.")
                 continue
-            
-            shutil.move(os.path.join("download", dest_file), pdf_p)
-            print("\tDone")
-        else:
-            print("\tInjecting scripts...")
-            # we want to inject jQuery now
-            driver.execute_script("""var s=window.document.createElement('script');\
-            s.src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js';\
-            window.document.head.appendChild(s);""")
+            redirect_url = "https://techinfo.toyota.com" + match.group(1)
+            cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+            r = requests.get(redirect_url, cookies=cookies, headers={
+                'Referer': url,
+                'User-Agent': driver.execute_script("return navigator.userAgent"),
+            })
+            if r.status_code == 200 and r.content.startswith(b'%PDF'):
+                with open(pdf_p, 'wb') as fh:
+                    fh.write(r.content)
+                print("\tDone")
+                continue
+            # Server returned HTML — navigate Selenium to it and save like a normal page
+            driver.get(redirect_url)
 
-            # remove the toyota footer
-            src = None
-            try :
-                src = driver.execute_script(open("injected.js", "r").read())
-            except:
-                time.sleep(1)
-                src = driver.execute_script(open("injected.js", "r").read())
+        print("\tInjecting scripts...")
+        driver.execute_script("""var s=window.document.createElement('script');\
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js';\
+        window.document.head.appendChild(s);""")
 
-            with open(f_p, 'w') as fh:
-                fh.write(src)
+        src = None
+        try:
+            src = driver.execute_script(open("injected.js", "r").read())
+        except:
+            time.sleep(1)
+            src = driver.execute_script(open("injected.js", "r").read())
 
-            fix_links(f_p)
+        with open(f_p, 'w') as fh:
+            fh.write(src)
 
-            print("\tDone")
+        fix_links(f_p)
+
+        print("\tDone")
     
     build_toc_index(id)
 
@@ -276,11 +262,16 @@ if __name__ == "__main__":
     
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("user-data-dir=./user-data")
+    chrome_options.add_experimental_option("prefs", {
+        "download.default_directory": os.path.abspath("download"),
+        "download.prompt_for_download": False,
+        "plugins.always_open_pdf_externally": True,
+    })
 
     shutil.rmtree("download", True)
     os.makedirs("download")
 
-    driver = webdriver.Chrome("./chromedriver", options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)
 
     driver.get("https://techinfo.toyota.com")
     input("Please login and press enter to continue...")
