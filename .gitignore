@@ -5,4 +5,7 @@ chromedriver.exe
 EM*/
 RM*/
 BM*/
+*.pdf
 .DS_Store
+.remember
+.venv

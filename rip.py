@@ -238,7 +238,7 @@ def download_manual(driver, t, id):
 
 def make_pdf(src, dest):
     print("Creating PDF from", src, "to", dest)
-    subprocess.run([CHROME_PATH, "--print-to-pdf=" + os.path.abspath(dest), "--no-gpu", "--headless", "file://" + os.path.abspath(src)])
+    subprocess.run([CHROME_PATH, "--print-to-pdf=" + os.path.abspath(dest), "--print-to-pdf-no-header", "--no-gpu", "--headless", "file://" + os.path.abspath(src)])
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

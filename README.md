@@ -53,19 +53,27 @@ RM41R0U/
 
 Electrical diagrams are downloaded as PDFs directly for the `system`, `overall`, and `routing` categories.
 
-## Combining into a single PDF (combine.py)
+## Building section PDFs (build.py)
 
-After downloading, combine all PDFs into one file with a linked table of contents:
+After downloading HTML pages with `rip.py`, convert and combine them into per-section PDFs:
 
 ```
-./combine.py RM41R0U
+./build.py RM41R0U
 ```
 
-Output: `RM41R0U_combined.pdf`
+Output: one PDF per top-level section, e.g.:
+```
+RM41R0U_General.pdf
+RM41R0U_Preparation.pdf
+RM41R0U_Engine_Mechanical.pdf
+...
+```
 
-The combined PDF includes:
-- A table of contents at the front with dot leaders and page numbers
-- Clickable links on every TOC entry that jump to the correct page
+Each section PDF includes:
+- A cover page with the section name and table of contents
+- Dot leaders and page numbers for every entry
+- Clickable TOC links that jump to the correct page
 - A PDF outline (navigation panel in Preview, Acrobat, etc.)
 
-Pages not yet downloaded are skipped gracefully. Run `rip.py` again to fill in any gaps, then re-run `combine.py`.
+Converted PDFs are cached in `RM41R0U/pdf/` — re-runs skip files that are already converted. Pages not yet downloaded are skipped gracefully; run `rip.py` again to fill gaps, then re-run `build.py`.
+

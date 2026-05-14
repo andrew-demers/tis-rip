@@ -2,3 +2,5 @@ selenium
 bs4
 lxml
 requests
+pypdf
+reportlab
