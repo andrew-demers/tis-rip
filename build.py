@@ -6,7 +6,7 @@ Creates one combined PDF per top-level section (e.g. General, Preparation, Engin
 Converted PDFs are cached in <manual_dir>/pdf/ so re-runs skip already-converted files.
 
 Usage: ./build.py <manual_dir>
-Output: <manual_dir>_<SectionName>.pdf for each section
+Output: <manual_dir>_output/<N>_<SectionName>.pdf for each section
 """
 
 import sys
@@ -272,6 +272,9 @@ def main():
 
     os.makedirs(pdf_dir, exist_ok=True)
 
+    output_dir = manual_dir.rstrip("/") + "_output"
+    os.makedirs(output_dir, exist_ok=True)
+
     tree = ET.parse(toc_path)
     root = tree.getroot()
 
@@ -292,7 +295,7 @@ def main():
 
     for i, section_name in enumerate(section_order, 1):
         safe_name = sanitize_filename(section_name)
-        output_path = f"{manual_dir}_{i:02d}_{safe_name}.pdf"
+        output_path = os.path.join(output_dir, f"{i:02d}_{safe_name}.pdf")
 
         print(f"\n[{i}/{len(section_order)}] {section_name}")
 
