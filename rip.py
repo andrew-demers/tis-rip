@@ -4,15 +4,11 @@ import time
 import os.path
 import xml.etree.ElementTree as ET
 import shutil
-import subprocess
 from bs4 import BeautifulSoup
 import os
 import sys
 import re
 import requests
-
-# The chrome application path is pretty platform/install specific..
-CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 def mkfilename(s):
     fn = ""
@@ -109,15 +105,11 @@ def toc_parse_items(base, items):
         wrap += name
 
         if "href" in i.attrib and i.attrib["href"] != "":
-            # it has a link, parse it
             bn = os.path.splitext(os.path.basename(i.attrib["href"]))[0]
             html_path = os.path.join(base, "html", bn + ".html")
-            pdf_path = os.path.join(base, "pdf", bn + ".pdf")
 
             if os.path.exists(html_path):
                 wrap += " [<a href=\"html/" + bn + ".html\">HTML</a>] "
-            if os.path.exists(pdf_path):
-                wrap += " [<a href=\"pdf/" + bn + ".pdf\">PDF</a>] "
 
         wrap += toc_parse_items(base, i.findall("item"))
         wrap += "</li>"
@@ -149,8 +141,6 @@ def build_toc_index(base):
 def download_manual(driver, t, id):
     if not os.path.exists(os.path.join(id, "html")):
         os.makedirs(os.path.join(id, "html"))
-    if not os.path.exists(os.path.join(id, "pdf")):
-        os.makedirs(os.path.join(id, "pdf"))
     toc_path = os.path.join(id, "toc.xml")
     if not os.path.exists(toc_path):
         print("Downloading the TOC for", id)
@@ -181,16 +171,8 @@ def download_manual(driver, t, id):
         # all are html files, load them all up one at a time and then save them
         f_parts = href.split('/')
         f_p = os.path.join(id, "html", f_parts[len(f_parts)-1])
-        pdf_p = os.path.join(id, "pdf", f_parts[len(f_parts)-1][:-5] + ".pdf")
 
-        #print("do we make a pdf?")
-        print(f_p+" "+pdf_p)
-        if os.path.exists(f_p) and not os.path.exists(pdf_p):
-            # make the pdf
-            #print("we have a file but no pdf, let's go!")
-            make_pdf(f_p, pdf_p)
-
-        if os.path.exists(f_p) or os.path.exists(pdf_p):
+        if os.path.exists(f_p):
             continue
         driver.get(url)
         page_source = driver.page_source
@@ -208,9 +190,8 @@ def download_manual(driver, t, id):
                 'User-Agent': driver.execute_script("return navigator.userAgent"),
             })
             if r.status_code == 200 and r.content.startswith(b'%PDF'):
-                with open(pdf_p, 'wb') as fh:
-                    fh.write(r.content)
-                print("\tDone")
+                # Direct PDF — save it as HTML is not applicable; skip for build.py to handle
+                print("\tDirect PDF, skipping (run build.py to convert)")
                 continue
             # Server returned HTML — navigate Selenium to it and save like a normal page
             driver.get(redirect_url)
@@ -236,9 +217,6 @@ def download_manual(driver, t, id):
     
     build_toc_index(id)
 
-def make_pdf(src, dest):
-    print("Creating PDF from", src, "to", dest)
-    subprocess.run([CHROME_PATH, "--print-to-pdf=" + os.path.abspath(dest), "--print-to-pdf-no-header", "--no-gpu", "--headless", "file://" + os.path.abspath(src)])
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
