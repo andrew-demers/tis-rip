@@ -200,50 +200,57 @@ def build_section(section_name, toc_items, html_dir, pdf_dir, output_path):
 
     print(f"  {converted} converted, {cached} cached, {missing} missing — {content_page} pages")
 
-    # Draft TOC to measure its page count
-    draft_bytes, _ = render_toc(section_name, toc_items, {})
-    toc_page_count = len(PdfReader(io.BytesIO(draft_bytes)).pages)
+    try:
+        # Draft TOC to measure its page count
+        draft_bytes, _ = render_toc(section_name, toc_items, {})
+        toc_page_count = len(PdfReader(io.BytesIO(draft_bytes)).pages)
 
-    href_to_final_page = {
-        href: toc_page_count + p
-        for href, p in href_to_content_page.items()
-    }
+        href_to_final_page = {
+            href: toc_page_count + p
+            for href, p in href_to_content_page.items()
+        }
 
-    toc_bytes, link_list = render_toc(section_name, toc_items, href_to_final_page)
+        toc_bytes, link_list = render_toc(section_name, toc_items, href_to_final_page)
 
-    final_writer = PdfWriter()
+        final_writer = PdfWriter()
 
-    for page in PdfReader(io.BytesIO(toc_bytes)).pages:
-        final_writer.add_page(page)
+        for page in PdfReader(io.BytesIO(toc_bytes)).pages:
+            final_writer.add_page(page)
 
-    content_buf = io.BytesIO()
-    content_writer.write(content_buf)
-    content_buf.seek(0)
-    for page in PdfReader(content_buf).pages:
-        final_writer.add_page(page)
+        content_buf = io.BytesIO()
+        content_writer.write(content_buf)
+        content_buf.seek(0)
+        for page in PdfReader(content_buf).pages:
+            final_writer.add_page(page)
 
-    for toc_page_idx, rect, dest_page in link_list:
-        annotation = Link(
-            rect=rect,
-            target_page_index=dest_page,
-            fit=Fit.fit(),
-        )
-        final_writer.add_annotation(page_number=toc_page_idx, annotation=annotation)
+        for toc_page_idx, rect, dest_page in link_list:
+            annotation = Link(
+                rect=rect,
+                target_page_index=dest_page,
+                fit=Fit.fit(),
+            )
+            final_writer.add_annotation(page_number=toc_page_idx, annotation=annotation)
 
-    outline_stack = {}
-    for name, href, depth in toc_items:
-        dest_page = href_to_final_page.get(href) if href else None
-        if dest_page is None:
-            continue
-        parent = outline_stack.get(depth - 1)
-        ref = final_writer.add_outline_item(name, dest_page, parent=parent)
-        outline_stack[depth] = ref
+        outline_stack = {}
+        for name, href, depth in toc_items:
+            dest_page = href_to_final_page.get(href) if href else None
+            if dest_page is None:
+                continue
+            parent = outline_stack.get(depth - 1)
+            ref = final_writer.add_outline_item(name, dest_page, parent=parent)
+            outline_stack[depth] = ref
 
-    with open(output_path, "wb") as f:
-        final_writer.write(f)
+        with open(output_path, "wb") as f:
+            final_writer.write(f)
 
-    print(f"  Saved: {output_path}")
-    return True
+        print(f"  Saved: {output_path}")
+        return True
+
+    except Exception as e:
+        print(f"  ERROR combining section '{section_name}': {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def main():
@@ -267,20 +274,29 @@ def main():
 
     tree = ET.parse(toc_path)
     root = tree.getroot()
-    sections = root.findall("item")
 
-    print(f"Found {len(sections)} sections")
-
-    for i, section in enumerate(sections, 1):
+    # Group top-level items by section name, preserving order.
+    # Older manuals repeat the same section name across many top-level items
+    # (e.g. 105 "General" entries) — these get merged into one PDF.
+    section_order = []
+    section_items = {}
+    for section in root.findall("item"):
         name_el = section.find("name")
         section_name = (name_el.text or "Section").strip() if name_el is not None else "Section"
+        if section_name not in section_items:
+            section_order.append(section_name)
+            section_items[section_name] = []
+        collect_items(section, depth=0, result=section_items[section_name])
+
+    print(f"Found {len(section_order)} sections")
+
+    for i, section_name in enumerate(section_order, 1):
         safe_name = sanitize_filename(section_name)
         output_path = f"{manual_dir}_{i:02d}_{safe_name}.pdf"
 
-        print(f"\n[{i}/{len(sections)}] {section_name}")
+        print(f"\n[{i}/{len(section_order)}] {section_name}")
 
-        toc_items = collect_items(section)
-        build_section(section_name, toc_items, html_dir, pdf_dir, output_path)
+        build_section(section_name, section_items[section_name], html_dir, pdf_dir, output_path)
 
 
 if __name__ == "__main__":
